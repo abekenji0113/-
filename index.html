@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>InvaderGame</title>
+  <style>
+    body {
+      background-color: #ffcce6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    canvas {
+      border: 5px solid #ff9999;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ゲーム設定
+    const gridSize = 20;
+    const alienRows = 4;
+    const alienCols = 8;
+    const alienWidth = gridSize * 1.2;
+    const alienHeight = gridSize;
+    const alienDescentRate = 0.3;
+    const alienLaserSpeed = 4;
+    const playerSpeed = 6;
+    const playerLaserSpeed = 8;
+
+    // プレイヤー
+    let playerX = canvas.width / 2;
+    let playerY = canvas.height - gridSize * 2;
+    const playerWidth = gridSize * 2;
+    const playerHeight = gridSize;
+
+    // エイリアン
+    const aliens = [];
+    for (let row = 0; row < alienRows; row++) {
+      for (let col = 0; col < alienCols; col++) {
+        aliens.push({
+          x: col * (alienWidth + gridSize),
+          y: row * (alienHeight + gridSize * 2),
+          width: alienWidth,
+          height: alienHeight,
+          alive: true
+        });
+      }
+    }
+
+    // レーザー
+    const playerLasers = [];
+    const alienLasers = [];
+
+    // 方向
+    let moveRight = true;
+    let descendAliens = false;
+
+    // 背景の描画
+    function drawBackground() {
+      ctx.fillStyle = '#ffcce6';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 星を描画
+      ctx.fillStyle = '#ffccff';
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const size = Math.random() * 2 + 1;
+        ctx.fillRect(x, y, size, size);
+      }
+    }
+
+    // プレイヤーの描画
+    function drawPlayer() {
+      ctx.fillStyle = '#ff6666';
+      ctx.fillRect(playerX - playerWidth / 2, playerY, playerWidth, playerHeight);
+    }
+
+    // エイリアンの描画
+    function drawAliens() {
+      for (let i = 0; i < aliens.length; i++) {
+        const alien = aliens[i];
+        if (alien.alive) {
+          ctx.fillStyle = '#66ff66';
+          ctx.fillRect(alien.x, alien.y, alien.width, alien.height);
+        }
+      }
+    }
+
+    // レーザーの描画
+    function drawLasers() {
+      ctx.fillStyle = '#ffff66';
+      for (let i = 0; i < playerLasers.length; i++) {
+        const laser = playerLasers[i];
+        ctx.fillRect(laser.x, laser.y, gridSize / 4, gridSize);
+      }
+
+      ctx.fillStyle = '#6666ff';
+      for (let i = 0; i < alienLasers.length; i++) {
+        const laser = alienLasers[i];
+        ctx.fillRect(laser.x, laser.y, gridSize / 4, gridSize);
+      }
+    }
+
+    // ゲームループ
+    function gameLoop() {
+      drawBackground();
+      drawPlayer();
+      drawAliens();
+      drawLasers();
+
+      // エイリアンの移動
+      if (!descendAliens) {
+        for (let i = 0; i < aliens.length; i++) {
+          const alien = aliens[i];
+          if (alien.alive) {
+            if (moveRight) {
+              alien.x += alienWidth / 2;
+            } else {
+              alien.x -= alienWidth / 2;
+            }
+          }
+        }
+      } else {
+        for (let i = 0; i < aliens.length; i++) {
+          const alien = aliens[i];
+          if (alien.alive) {
+            alien.y += alienHeight * alienDescentRate;
+          }
+        }
+      }
+
+      // エイリアンの方向変更
+      const leftmost = aliens.reduce((min, alien) => (alien.alive && alien.x < min.x ? alien : min), aliens[0]);
+      const rightmost = aliens.reduce((max, alien) => (alien.alive && alien.x > max.x ? alien : max), aliens[0]);
+      if (leftmost.x <= 0) {
+        moveRight = true;
+        descendAliens = true;
+      } else if (rightmost.x + alienWidth >= canvas.width) {
+        moveRight = false;
+        descendAliens = true;
+      }
+
+      // プレイヤーの移動
+      if (leftPressed && playerX > 0) {
+        playerX -= playerSpeed;
+      } else if (rightPressed && playerX < canvas.width - playerWidth) {
+        playerX += playerSpeed;
+      }
+
+      // レーザーの移動と衝突検知
+      for (let i = playerLasers.length - 1; i >= 0; i--) {
+        const laser = playerLasers[i];
+        laser.y -= playerLaserSpeed;
+        if (laser.y < 0) {
+          playerLasers.splice(i, 1);
+        } else {
+          for (let j = aliens.length - 1; j >= 0; j--) {
+            const alien = aliens[j];
+            if (alien.alive && laser.y <= alien.y + alien.height && laser.x >= alien.x && laser.x <= alien.x + alien.width) {
+              alien.alive = false;
+              playerLasers.splice(i, 1);
+              break;
+            }
+          }
+        }
+      }
+
+      for (let i = alienLasers.length - 1; i >= 0; i--) {
+        const laser = alienLasers[i];
+        laser.y += alienLaserSpeed;
+        if (laser.y > canvas.height) {
+          alienLasers.splice(i, 1);
+        } else if (laser.y >= playerY && laser.x >= playerX - playerWidth / 2 && laser.x <= playerX + playerWidth / 2) {
+          // ゲームオーバー
+          alert('Game Over!');
+          aliens.forEach(alien => alien.alive = false);
+          playerLasers.length = 0;
+          alienLasers.length = 0;
+        }
+      }
+
+      // エイリアンのレーザー発射
+      if (Math.random() < 0.01) {
+        const shooter = aliens.filter(alien => alien.alive)[Math.floor(Math.random() * aliens.filter(alien => alien.alive).length)];
+        alienLasers.push({
+          x: shooter.x + shooter.width / 2,
+          y: shooter.y + shooter.height
+        });
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // キー入力の処理
+    let leftPressed = false;
+    let rightPressed = false;
+
+    document.addEventListener('keydown', event => {
+      if (event.code === 'ArrowLeft') {
+        leftPressed = true;
+      } else if (event.code === 'ArrowRight') {
+        rightPressed = true;
+      } else if (event.code === 'Space') {
+        playerLasers.push({
+          x: playerX,
+          y: playerY - gridSize
+        });
+      }
+    });
+
+    document.addEventListener('keyup', event => {
+      if (event.code === 'ArrowLeft') {
+        leftPressed = false;
+      } else if (event.code === 'ArrowRight') {
+        rightPressed = false;
+      }
+    });
+
+    gameLoop();
+  </script>
+</body>
+</html>
